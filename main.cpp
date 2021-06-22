@@ -3,13 +3,26 @@
 #include<conio.h>
 #include<time.h>
 #include<stdlib.h>
+
+#include<MMSystem.h>
+#pragma comment(lib, "winmm.lib")
+#include "Mmsystem.h"
+#include "Digitalv.h"
+MCI_OPEN_PARMS m_mciOpenParms;
+MCI_PLAY_PARMS m_mciPlayParms;
+DWORD m_dwDeviceID;
+MCI_OPEN_PARMS mciOpen;
+MCI_PLAY_PARMS mciPlay;
+int dwID;
+
+int best_score=0;
+
 #define DINO_BOTTOM_Y 29
 #define DINO_BOTTOM_X 0
 #define DINO_BOTTOM_YH 29
 #define TREE_BOTTOM_Y 35
 #define TREE_BOTTOM_X 97
 #define BIRD_BOTTOM_X 85
-
  
 //콘솔 창의 크기와 제목을 지정하는 함수
 void SetConsoleView()
@@ -40,6 +53,16 @@ int GetKeyDown()
         return _getch();
     }
     return 0;
+}
+
+void reset(void)
+{
+	FILE *file=fopen("score.dat", "rt"); // score.dat파일을 연결 
+	if(file==0){best_score=0;} //파일이 없으면 걍 최고점수에 0을 넣음 
+	else {
+		fscanf(file,"%d", &best_score); // 파일이 열리면 최고점수를 불러옴 
+		fclose(file); //파일 닫음 
+	}
 }
  
 //공룡을 그리는 함수
@@ -354,6 +377,25 @@ void DrawGameOver(const int score)
     printf("SCORE : %d", score);
  
     printf("\n\n\n\n\n\n\n\n\n");
+
+	if(score>best_score){ //최고기록 갱신시 
+		FILE* file=fopen("score.dat", "wt"); //score.dat에 점수 저장                
+        
+		GotoXY(x, y + 7); 
+		printf("▤  ★★★ BEST SCORE! ★★★   ▤  ");
+ 
+        if(file==0){ //파일 에러메세지  
+			GotoXY(x, y + 8);
+            printf("FILE ERROR: SYSTEM CANNOT WRITE BEST SCORE ON \"SCORE.DAT\"");
+        }
+        else{
+			fprintf(file,"%d", score);
+            fclose(file);
+        }
+	}
+
+	reset();
+
     while(1)
 	{
 		if(GetKeyDown() == VK_SPACE){
@@ -382,7 +424,7 @@ bool isCollision2(const int BirdX, const int dinoHY)
     //0528 공룡의 높이가 충분하지 않다면 충돌로 처리
 	GotoXY(0, 2);
     printf("BirdX : %d, dinoHY : %d", BirdX, dinoHY); //x,y값을 확인하기 위함
-    if (BirdX < 10 && BirdX >= 9 && dinoHY < 36)
+    if (BirdX <= 10 && BirdX >= 9 && dinoHY < 36)
     {
         return true;
     }
@@ -392,23 +434,25 @@ bool isCollision2(const int BirdX, const int dinoHY)
 void ranking()
 {
 	system("cls");
+	reset();
     int x = 18;
     int y = 8;
     GotoXY(x, y);
     printf("===========================");
     GotoXY(x, y + 1);
-    printf("==========ranking==========");
+    printf("====B E S T - S C O R E====");
     GotoXY(x, y + 2);    
     printf("===========================");
- 
+	GotoXY(x, y + 4);    
+	printf("          [ %d ]",best_score);
+
     printf("\n\n\n\n\n\n\n\n\n");
 	getch();
 }
 
 void play()
 {
-	//while (true)        //(v2.0) 게임 루프
- //   {
+
         //게임 시작시 초기화
         bool isJumping = false;
         bool isBottom = true;
@@ -430,17 +474,23 @@ void play()
         int score = 0;
         clock_t start, curr;    //점수 변수 초기화
         start = clock();        //시작시간 초기화
-		//under2 = clock();
- 
+
         while (true)    //한 판에 대한 루프
         {
 			curr = clock();            //현재시간 받아오기
 
+
             //충돌체크 트리의 x값과 공룡의 y값으로 판단
             if(isCollision(treeX, dinoY)&&num==1)
+			{
+				sndPlaySoundA("bgm/game_over.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/);
                 break;
+			}
 			if(isCollision2(BirdX, dinoHY)&&num==2)
+			{
+				sndPlaySoundA("bgm/game_over.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/);
                 break;
+			}
 			/*getKeyDown사용자정의 함수를 while문 안에서 사용하면 키를 동시입력 받지 못하는
 			문제가 있어서 kbhit과getche를 사용하였음
 			*/
@@ -450,12 +500,14 @@ void play()
                 //z키가 눌렸고, 바닥이 아닐때 점프
                 if (op == 'z' && isBottom)
                 {
+					sndPlaySoundA("bgm/mario_jump.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/); // 소리내기
                     isJumping = true;
                     isBottom = false;
                 }
 				//0528 x키가 눌렸고 숙인 상태가 아니라면 숙임
                 else if (op == 'x'&& isTop)
                 {
+					sndPlaySoundA("bgm/dino_down.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/);
 					isDown = true;
 					isTop = false;
                     under = false;
@@ -562,6 +614,18 @@ void play()
 					num = num1;
 					}
 				}
+
+				if (score<200 && score>=40)
+				{
+					treeX -= 4;
+					if (treeX <= -1)
+					{
+					treeX = TREE_BOTTOM_X;
+					int num1 = (rand()%2)+1;
+					num = num1;
+					}
+				}
+
 			}
 			//익룡
 			if(num == 2)
@@ -590,6 +654,17 @@ void play()
 					num = num1;
 					}
 				}
+
+				if (score<200 && score>=40)
+				{
+					BirdX -= 4;
+					if (BirdX <= -1)
+					{
+					BirdX = BIRD_BOTTOM_X;
+					int num1 = (rand()%2)+1;
+					num = num1;
+					}
+				}
 			}
 
 			//랜덤값 잘 나오는지 테스트
@@ -606,9 +681,9 @@ void play()
  
             GotoXY(22, 0);    
             printf("Score : %d", score);    //점수 출력
+
         }
 		DrawGameOver(score);
-	//}
 }
 
 
@@ -617,7 +692,15 @@ void play()
  
 int main()
 {
-    SetConsoleView(); 
+    SetConsoleView();
+	mciOpen.lpstrElementName = "bgm/cheeta_man.mp3";
+	mciOpen.lpstrDeviceType = "mpegvideo";
+	mciSendCommand(NULL, MCI_OPEN, MCI_OPEN_ELEMENT|MCI_OPEN_TYPE,(DWORD)(LPVOID)&mciOpen);
+	dwID = mciOpen.wDeviceID;
+
+	mciSendCommand(dwID, MCI_PLAY, MCI_DGV_PLAY_REPEAT,(DWORD)(LPVOID)&m_mciPlayParms);
+	
+	reset();
 
 	do
 	{
@@ -627,18 +710,26 @@ int main()
 		GotoXY(x,y);
 		printf("1.게임시작");
 		GotoXY(x,y+1);
-		printf("2.랭킹");
+		printf("2.최고점수");
 		GotoXY(x,y+2);
 		printf("3.종료");
 
 		char op=getch();
 
-		if(op=='1') 
+		if(op=='1')
+		{
+			sndPlaySoundA("bgm/select.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/);
 			play();
-		else if(op=='2') 
+		}
+		else if(op=='2')
+		{
+			sndPlaySoundA("bgm/select.wav",SND_ASYNC | SND_NODEFAULT /*| SND_LOOP*/);
 			ranking();
+		}
 		else if(op=='3') 
+		{
 			exit(0);
+		}
 
 	}while(1);
 
